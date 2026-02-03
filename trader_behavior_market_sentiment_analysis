@@ -1,0 +1,160 @@
+# ===============================================
+# Trader Behavior & Bitcoin Market Sentiment Analysis
+# ===============================================
+
+# Step 1: Import Libraries
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+sns.set(style="whitegrid")
+pd.set_option('display.max_columns', None)
+
+# ===============================================
+# Step 2: Load Datasets
+# ===============================================
+
+# Replace with your local file paths
+sentiment_path = "fear_greed_index.csv"
+trader_path = "historical_trader_data.csv"
+
+sentiment_df = pd.read_csv(sentiment_path)
+trader_df = pd.read_csv(trader_path)
+
+# ===============================================
+# Step 3: Data Cleaning & Preprocessing
+# ===============================================
+
+# ----- Sentiment Dataset -----
+sentiment_df.rename(columns={"Classification": "Sentiment"}, inplace=True)
+
+# Convert Date to datetime
+sentiment_df['Date'] = pd.to_datetime(sentiment_df['Date'])
+
+# Keep only required columns
+sentiment_df = sentiment_df[['Date', 'Sentiment']]
+
+# ----- Trader Dataset -----
+
+# Convert time column to datetime
+trader_df['time'] = pd.to_datetime(trader_df['time'])
+
+# Extract date from time for merging
+trader_df['Date'] = trader_df['time'].dt.date
+trader_df['Date'] = pd.to_datetime(trader_df['Date'])
+
+# Convert numeric fields
+numeric_cols = ['execution price', 'size', 'closedPnL', 'leverage']
+for col in numeric_cols:
+    if col in trader_df.columns:
+        trader_df[col] = pd.to_numeric(trader_df[col], errors='coerce')
+
+# ===============================================
+# Step 4: Merge Datasets
+# ===============================================
+
+merged_df = pd.merge(trader_df, sentiment_df, on='Date', how='left')
+
+print("Merged Dataset Shape:", merged_df.shape)
+print(merged_df.head())
+
+# ===============================================
+# Step 5: Feature Engineering
+# ===============================================
+
+# Profitability Flag
+merged_df['Is_Profitable'] = np.where(merged_df['closedPnL'] > 0, 1, 0)
+
+# Trade Volume
+merged_df['Trade_Value'] = merged_df['execution price'] * merged_df['size']
+
+# ===============================================
+# Step 6: Analysis 1 – Profitability vs Sentiment
+# ===============================================
+
+profit_by_sentiment = merged_df.groupby('Sentiment')['closedPnL'].mean().sort_values()
+
+print("\nAverage PnL by Sentiment:")
+print(profit_by_sentiment)
+
+plt.figure(figsize=(8,5))
+profit_by_sentiment.plot(kind='bar')
+plt.title("Average Trader PnL by Market Sentiment")
+plt.ylabel("Average closedPnL")
+plt.show()
+
+# ===============================================
+# Step 7: Analysis 2 – Win Rate vs Sentiment
+# ===============================================
+
+win_rate = merged_df.groupby('Sentiment')['Is_Profitable'].mean()
+
+plt.figure(figsize=(8,5))
+win_rate.plot(kind='bar')
+plt.title("Trader Win Rate by Sentiment")
+plt.ylabel("Win Rate")
+plt.show()
+
+# ===============================================
+# Step 8: Analysis 3 – Leverage Usage vs Sentiment
+# ===============================================
+
+if 'leverage' in merged_df.columns:
+    leverage_analysis = merged_df.groupby('Sentiment')['leverage'].mean()
+
+    plt.figure(figsize=(8,5))
+    leverage_analysis.plot(kind='bar')
+    plt.title("Average Leverage by Sentiment")
+    plt.ylabel("Leverage")
+    plt.show()
+
+# ===============================================
+# Step 9: Analysis 4 – Trade Volume vs Sentiment
+# ===============================================
+
+volume_analysis = merged_df.groupby('Sentiment')['Trade_Value'].mean()
+
+plt.figure(figsize=(8,5))
+volume_analysis.plot(kind='bar')
+plt.title("Average Trade Value by Sentiment")
+plt.ylabel("Trade Value")
+plt.show()
+
+# ===============================================
+# Step 10: Time Trend Analysis
+# ===============================================
+
+daily_pnl = merged_df.groupby('Date')['closedPnL'].sum()
+
+plt.figure(figsize=(12,5))
+daily_pnl.plot()
+plt.title("Daily Total Trader PnL Over Time")
+plt.ylabel("Total closedPnL")
+plt.show()
+
+# ===============================================
+# Step 11: Key Insights Extraction
+# ===============================================
+
+print("\n===== KEY INSIGHTS =====")
+
+best_sentiment = profit_by_sentiment.idxmax()
+worst_sentiment = profit_by_sentiment.idxmin()
+
+print(f"Highest Average Profitability occurs during: {best_sentiment}")
+print(f"Lowest Average Profitability occurs during: {worst_sentiment}")
+
+highest_win = win_rate.idxmax()
+lowest_win = win_rate.idxmin()
+
+print(f"Highest Win Rate occurs during: {highest_win}")
+print(f"Lowest Win Rate occurs during: {lowest_win}")
+
+# ===============================================
+# Step 12: Save Output
+# ===============================================
+
+merged_df.to_csv("merged_trader_sentiment_analysis.csv", index=False)
+
+print("\nAnalysis Complete. Output saved.")
